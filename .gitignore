@@ -67,8 +67,6 @@ uploads/
 *.tmp
 *.temp
 
-# Client-side artifacts
-public/
 
 # Mac OS specific files
 .DS_Store
