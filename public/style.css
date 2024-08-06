@@ -1,0 +1,203 @@
+/* Basic styles for the progress bar */
+#progressContainer {
+    width: 100%;
+    background-color: #f3f3f3;
+    margin-top: 10px;
+}
+
+#progressBar {
+    width: 0%;
+    height: 30px;
+    background-color: #4caf50;
+    text-align: center;
+    line-height: 30px;
+    color: white;
+}
+
+/* Styles for file list */
+#fileList, #uploadedFilesList, #downloadFilesList {
+    list-style-type: none;
+    padding: 0;
+    margin: 10px 0;
+}
+
+#fileList li, #uploadedFilesList li, #downloadFilesList li {
+    background-color: #e0e0e0;
+    margin: 5px 0;
+    padding: 8px;
+    border-radius: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.file-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 50%;
+}
+
+.button-group {
+    display: flex;
+    gap: 10px;
+}
+
+.remove-button {
+    background-color: #ff4d4d;
+    border: none;
+    border-radius: 50%;
+    color: white;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0 6px;
+    margin-left: 10px;
+}
+
+.delete-button {
+    background-color: #ff0000;
+    border: none;
+    border-radius: 5px;
+    color: white;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 5px 10px;
+}
+
+.download-button {
+    background-color: #4caf50;
+    border: none;
+    border-radius: 5px;
+    color: white;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 5px 10px;
+}
+
+/* Styles for password modal */
+#passwordModal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.4);
+    justify-content: center;
+    align-items: center;
+}
+
+#passwordModalContent {
+    background-color: #fefefe;
+    margin: 15% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 300px;
+    text-align: center;
+}
+
+#passwordModalContent input {
+    margin-top: 10px;
+    padding: 5px;
+    width: 80%;
+}
+
+#passwordModalContent button {
+    margin-top: 10px;
+    padding: 5px 20px;
+    background-color: #4caf50;
+    border: none;
+    border-radius: 5px;
+    color: white;
+    cursor: pointer;
+}
+
+.hidden {
+    display: none;
+}
+
+/* Styles for notification system */
+.notification-container {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+    width: 300px;
+    max-width: 90%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.notification {
+    padding: 15px;
+    border-radius: 5px;
+    color: white;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+}
+
+.notification.show {
+    opacity: 1;
+}
+
+.notification.success {
+    background-color: #4caf50;
+}
+
+.notification.error {
+    background-color: #ff4d4d;
+}
+
+.notification.info {
+    background-color: #2196f3;
+}
+
+/* Confirmation dialog styles */
+#confirmModal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.4);
+    justify-content: center;
+    align-items: center;
+}
+
+#confirmModalContent {
+    background-color: #fefefe;
+    margin: 15% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 300px;
+    text-align: center;
+}
+
+#confirmModalContent button {
+    margin-top: 10px;
+    padding: 5px 20px;
+    border: none;
+    border-radius: 5px;
+    color: white;
+    cursor: pointer;
+}
+
+#confirmYesButton {
+    background-color: #4caf50;
+}
+
+#confirmNoButton {
+    background-color: #ff4d4d;
+}
+
+/* Style for file count display */
+#fileCount {
+    margin: 10px 0;
+    font-weight: bold;
+}

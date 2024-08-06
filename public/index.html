@@ -4,127 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>File Share App</title>
-    <style>
-        /* Basic styles for the progress bar */
-        #progressContainer {
-            width: 100%;
-            background-color: #f3f3f3;
-            margin-top: 10px;
-        }
-
-        #progressBar {
-            width: 0%;
-            height: 30px;
-            background-color: #4caf50;
-            text-align: center;
-            line-height: 30px;
-            color: white;
-        }
-
-        /* Styles for file list */
-        #fileList, #uploadedFilesList, #downloadFilesList {
-            list-style-type: none;
-            padding: 0;
-            margin: 10px 0;
-        }
-
-        #fileList li, #uploadedFilesList li, #downloadFilesList li {
-            background-color: #e0e0e0;
-            margin: 5px 0;
-            padding: 8px;
-            border-radius: 5px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .file-name {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            max-width: 50%;
-        }
-
-        .button-group {
-            display: flex;
-            gap: 10px;
-        }
-
-        .remove-button {
-            background-color: #ff4d4d;
-            border: none;
-            border-radius: 50%;
-            color: white;
-            cursor: pointer;
-            font-size: 12px;
-            padding: 0 6px;
-            margin-left: 10px;
-        }
-
-        .delete-button {
-            background-color: #ff0000;
-            border: none;
-            border-radius: 5px;
-            color: white;
-            cursor: pointer;
-            font-size: 12px;
-            padding: 5px 10px;
-        }
-
-        .download-button {
-            background-color: #4caf50;
-            border: none;
-            border-radius: 5px;
-            color: white;
-            cursor: pointer;
-            font-size: 12px;
-            padding: 5px 10px;
-        }
-
-        /* Styles for password modal */
-        #passwordModal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0, 0, 0, 0.4);
-            justify-content: center;
-            align-items: center;
-        }
-
-        #passwordModalContent {
-            background-color: #fefefe;
-            margin: 15% auto;
-            padding: 20px;
-            border: 1px solid #888;
-            width: 300px;
-            text-align: center;
-        }
-
-        #passwordModalContent input {
-            margin-top: 10px;
-            padding: 5px;
-            width: 80%;
-        }
-
-        #passwordModalContent button {
-            margin-top: 10px;
-            padding: 5px 20px;
-            background-color: #4caf50;
-            border: none;
-            border-radius: 5px;
-            color: white;
-            cursor: pointer;
-        }
-
-        .hidden {
-            display: none;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
 </head>
 <body>
     <div id="passwordModal">
@@ -132,6 +13,16 @@
             <h2>Enter Password</h2>
             <input type="password" id="password" placeholder="Password" required>
             <button id="submitPassword">Submit</button>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="confirmModal" class="hidden">
+        <div id="confirmModalContent">
+            <h2>Confirm Deletion</h2>
+            <p id="confirmMessage"></p>
+            <button id="confirmYesButton">Yes</button>
+            <button id="confirmNoButton">No</button>
         </div>
     </div>
 
@@ -143,7 +34,9 @@
     </form>
     <div id="progressContainer">
         <div id="progressBar">0%</div>
+        
     </div>
+    <div id="progressZip"></div>
     <div id="uploadResult" class="hidden">
         <h3>Uploaded Files:</h3>
         <ul id="uploadedFilesList"></ul>
@@ -151,280 +44,13 @@
     </div>
 
     <h3>Download Files:</h3>
+    <p id="fileCount">Total Files: 0</p>
     <button id="downloadAllButton" class="download-button">Download All Files</button>
+    <button id="deleteAllButton" class="delete-button">Delete All Files</button>
     <ul id="downloadFilesList"></ul>
 
-    <script>
-        const fileInput = document.getElementById('fileInput');
-        const fileList = document.getElementById('fileList');
-        const uploadedFilesList = document.getElementById('uploadedFilesList');
-        const downloadFilesList = document.getElementById('downloadFilesList');
-        const uploadResult = document.getElementById('uploadResult');
-        const reloadButton = document.getElementById('reloadButton');
-        const downloadAllButton = document.getElementById('downloadAllButton');
-        const passwordModal = document.getElementById('passwordModal');
-        const passwordInput = document.getElementById('password');
-        const submitPasswordButton = document.getElementById('submitPassword');
-        const progressBar = document.getElementById('progressBar');
-        let selectedFiles = [];
-        let downloadQueue = [];
+    <div id="notificationContainer" class="notification-container hidden"></div>
 
-        // Check for stored token
-        let token = localStorage.getItem('accessToken');
-
-        // Show password modal on page load if no token is stored
-        window.onload = function() {
-            if (!token) {
-                passwordModal.style.display = 'flex';
-            } else {
-                fetchFiles(); // Load files once token is set
-            }
-        };
-
-        // Handle password submission
-        submitPasswordButton.addEventListener('click', function() {
-            const password = passwordInput.value;
-            fetch('/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ password })
-            })
-                .then(response => {
-                    if (response.ok) {
-                        return response.json();
-                    } else {
-                        throw new Error('Unauthorized: Incorrect password');
-                    }
-                })
-                .then(data => {
-                    token = data.token;
-                    localStorage.setItem('accessToken', token);
-                    passwordModal.style.display = 'none';
-                    fetchFiles(); // Load files after token is set
-                })
-                .catch(error => {
-                    alert(error.message);
-                });
-        });
-
-        // Fetch files available for download
-        function fetchFiles() {
-            fetch('/files', {
-                headers: { 'x-access-token': token }
-            })
-                .then(response => {
-                    if (response.ok) {
-                        return response.json();
-                    } else {
-                        throw new Error('Unauthorized: Invalid token');
-                    }
-                })
-                .then(data => {
-                    displayDownloadFiles(data.files);
-                })
-                .catch(error => {
-                    console.error('Error fetching files:', error);
-                    alert('Unauthorized: Please enter the password again.');
-                    localStorage.removeItem('accessToken');
-                    location.reload();
-                });
-        }
-
-        // Update file list on input change
-        fileInput.addEventListener('change', function () {
-            const newFiles = Array.from(fileInput.files);
-            selectedFiles = mergeFileLists(selectedFiles, newFiles);
-            updateFileList();
-            fileInput.value = ''; // Reset file input to allow re-selecting the same file
-        });
-
-        function mergeFileLists(existingFiles, newFiles) {
-            // Filter out files that are already in the selectedFiles array
-            const existingFileNames = existingFiles.map(file => file.name);
-            const nonDuplicateFiles = newFiles.filter(file => !existingFileNames.includes(file.name));
-            return existingFiles.concat(nonDuplicateFiles);
-        }
-
-        function updateFileList() {
-            fileList.innerHTML = ''; // Clear previous list
-
-            selectedFiles.forEach((file, index) => {
-                const listItem = document.createElement('li');
-                listItem.textContent = file.name;
-
-                const removeButton = document.createElement('button');
-                removeButton.textContent = '×';
-                removeButton.classList.add('remove-button');
-                removeButton.addEventListener('click', () => removeFile(index));
-
-                listItem.appendChild(removeButton);
-                fileList.appendChild(listItem);
-            });
-        }
-
-        function removeFile(index) {
-            selectedFiles.splice(index, 1);
-            updateFileList();
-        }
-
-        document.getElementById('uploadForm').addEventListener('submit', function (e) {
-            e.preventDefault();
-            const formData = new FormData();
-
-            selectedFiles.forEach(file => {
-                formData.append('files', file);
-            });
-
-            const xhr = new XMLHttpRequest();
-
-            xhr.open('POST', '/upload', true);
-            xhr.setRequestHeader('x-access-token', token);
-
-            xhr.upload.addEventListener('progress', function (e) {
-                if (e.lengthComputable) {
-                    const percentComplete = (e.loaded / e.total) * 100;
-                    progressBar.style.width = percentComplete + '%';
-                    progressBar.textContent = Math.round(percentComplete) + '%';
-                }
-            });
-
-            xhr.onload = function () {
-                if (xhr.status === 200) {
-                    const response = JSON.parse(xhr.responseText);
-                    displayUploadedFiles(response.files);
-                    progressBar.style.width = '0%';
-                    progressBar.textContent = '0%';
-                    fileList.innerHTML = '';
-                    selectedFiles = [];
-                    uploadResult.classList.remove('hidden'); // Show the uploaded files section
-                    fetchFiles(); // Refresh the files list
-                } else {
-                    alert('An error occurred while uploading the files.');
-                }
-            };
-
-            xhr.send(formData);
-        });
-
-        reloadButton.addEventListener('click', function () {
-            location.reload(); // Reload the page to reset the form and selections
-        });
-
-        function displayUploadedFiles(files) {
-            uploadedFilesList.innerHTML = ''; // Clear previous list
-            files.forEach(fileName => {
-                const listItem = document.createElement('li');
-                listItem.textContent = truncateFileName(fileName);
-                uploadedFilesList.appendChild(listItem);
-            });
-        }
-
-        function displayDownloadFiles(files) {
-            downloadFilesList.innerHTML = ''; // Clear previous list
-            downloadQueue = files; // Keep track of all files for download
-            files.forEach(filePath => {
-                const fileName = filePath.split('/').pop(); // Extract file name
-                const batchName = filePath.split('/').slice(-2, -1)[0]; // Extract batch name
-                const listItem = document.createElement('li');
-
-                const nameSpan = document.createElement('span');
-                nameSpan.textContent = truncateFileName(fileName);
-                nameSpan.classList.add('file-name');
-
-                const buttonGroup = document.createElement('div');
-                buttonGroup.classList.add('button-group');
-
-                const downloadButton = document.createElement('button');
-                downloadButton.textContent = 'Download';
-                downloadButton.classList.add('download-button');
-                downloadButton.addEventListener('click', () => downloadFile(batchName, fileName));
-
-                const deleteButton = document.createElement('button');
-                deleteButton.textContent = 'Delete';
-                deleteButton.classList.add('delete-button');
-                deleteButton.addEventListener('click', () => deleteFile(batchName, fileName));
-
-                buttonGroup.appendChild(downloadButton);
-                buttonGroup.appendChild(deleteButton);
-                listItem.appendChild(nameSpan);
-                listItem.appendChild(buttonGroup);
-                downloadFilesList.appendChild(listItem);
-            });
-        }
-
-        downloadAllButton.addEventListener('click', function () {
-            downloadAllFiles();
-        });
-
-        function downloadAllFiles() {
-            let totalFiles = downloadQueue.length;
-            let completedFiles = 0;
-
-            downloadQueue.forEach(filePath => {
-                const fileName = filePath.split('/').pop();
-                const batchName = filePath.split('/').slice(-2, -1)[0];
-                downloadFile(batchName, fileName, () => {
-                    completedFiles++;
-                    const percentComplete = (completedFiles / totalFiles) * 100;
-                    progressBar.style.width = percentComplete + '%';
-                    progressBar.textContent = Math.round(percentComplete) + '%';
-                });
-            });
-        }
-
-        function truncateFileName(fileName) {
-            const maxLength = 50;
-            return fileName.length > maxLength ? fileName.substring(0, maxLength - 3) + '...' : fileName;
-        }
-
-        function downloadFile(batchName, fileName, callback) {
-            fetch(`/download/${batchName}/${fileName}`, {
-                headers: {
-                    'x-access-token': token
-                }
-            })
-                .then(response => {
-                    if (!response.ok) throw new Error('Failed to download file');
-                    return response.blob().then(blob => {
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = fileName;
-                        a.click();
-                        URL.revokeObjectURL(url);
-                        if (callback) callback();
-                    });
-                })
-                .catch(error => {
-                    console.error('Error downloading file:', error);
-                    alert('An error occurred while downloading the file.');
-                });
-        }
-
-        function deleteFile(batchName, fileName) {
-            if (confirm(`Are you sure you want to delete ${fileName}?`)) {
-                fetch(`/delete/${batchName}/${fileName}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'x-access-token': token
-                    }
-                })
-                    .then(response => {
-                        if (response.ok) {
-                            alert('File deleted successfully.');
-                            fetchFiles(); // Refresh the files list after deletion
-                        } else {
-                            alert('Failed to delete file.');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error deleting file:', error);
-                        alert('An error occurred while deleting the file.');
-                    });
-            }
-        }
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>

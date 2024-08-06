@@ -5,16 +5,24 @@ const fs = require('fs');
 const util = require('util');
 const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
+const archiver = require('archiver');
+const http = require('http');
+const socketIO = require('socket.io');
 
 dotenv.config();
 
 const app = express();
 const PORT = 1500;
 
+// Create HTTP server and Socket.IO server
+const server = http.createServer(app);
+const io = socketIO(server);
+
 // Promisify fs functions for easier async/await usage
 const mkdir = util.promisify(fs.mkdir);
 const readdir = util.promisify(fs.readdir);
 const unlink = util.promisify(fs.unlink);
+const rmdir = util.promisify(fs.rmdir);
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
 
@@ -34,14 +42,14 @@ function authenticate(req, res, next) {
     });
 }
 
-// Serve static files
-app.use(express.static('public'));
+// Serve static files from the client directory
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Endpoint to authenticate and get token
 app.post('/login', express.json(), (req, res) => {
     const { password } = req.body;
     if (password === process.env.ACCESS_PASSWORD) {
-        const token = jwt.sign({ id: 'user_id' }, JWT_SECRET, { expiresIn: '1h' }); // Set token expiration as needed
+        const token = jwt.sign({ id: 'user_id' }, JWT_SECRET, { expiresIn: '30d' });
         res.json({ token });
     } else {
         res.status(401).send('Unauthorized: Incorrect password');
@@ -84,16 +92,62 @@ app.post('/upload', upload.array('files', 100), async (req, res) => {
     }
 });
 
-// Endpoint to list uploaded files
+// Endpoint to list uploaded files and their count
 app.get('/files', async (req, res) => {
     try {
         const uploadDir = path.join(__dirname, 'uploads');
         const files = await getFiles(uploadDir);
-        res.json({ files });
+        res.json({ files, count: files.length });
     } catch (error) {
         console.error('Error retrieving files:', error);
         res.status(500).send('An error occurred while retrieving files.');
     }
+});
+
+// Endpoint to download all files as a ZIP
+app.get('/download-all', (req, res) => {
+    const uploadDir = path.join(__dirname, 'uploads');
+    let totalFiles = 0;
+    let processedFiles = 0;
+
+    fs.readdir(uploadDir, (err, folders) => {
+        if (err) {
+            console.error('Error reading upload directory:', err);
+            res.status(500).send('An error occurred while reading the directory.');
+            return;
+        }
+
+        // Calculate the total number of files to process
+        folders.forEach(folder => {
+            const folderPath = path.join(uploadDir, folder);
+            totalFiles += fs.readdirSync(folderPath).length;
+        });
+
+        res.setHeader('Content-Disposition', 'attachment; filename=all_files.zip');
+        res.setHeader('Content-Type', 'application/zip');
+
+        const archive = archiver('zip', {
+            zlib: { level: 9 }
+        });
+
+        archive.on('error', (err) => {
+            throw err;
+        });
+
+        archive.on('entry', () => {
+            processedFiles++;
+            io.emit('zipProgress', `Zipped ${processedFiles} of ${totalFiles} files`);
+        });
+
+        archive.pipe(res);
+
+        folders.forEach(folder => {
+            const folderPath = path.join(uploadDir, folder);
+            archive.directory(folderPath, folder);
+        });
+
+        archive.finalize();
+    });
 });
 
 // Endpoint to download a file
@@ -123,6 +177,18 @@ app.delete('/delete/:batch/:filename', async (req, res) => {
     }
 });
 
+// Endpoint to delete all files
+app.delete('/delete/all', async (req, res) => {
+    try {
+        const uploadDir = path.join(__dirname, 'uploads');
+        await deleteAllFiles(uploadDir);
+        res.json({ message: 'All files deleted successfully.' });
+    } catch (error) {
+        console.error('Error deleting all files:', error);
+        res.status(500).send('An error occurred while deleting all files.');
+    }
+});
+
 // Function to generate a batch directory name based on the current timestamp
 function getBatchDirName(req) {
     if (!req.batchDirName) {
@@ -140,14 +206,28 @@ async function getFiles(dir) {
         const res = path.resolve(dir, subDir.name);
         if (subDir.isDirectory()) {
             return getFiles(res);
-        } else if (path.basename(res) !== '.DS_Store') { // Exclude .DS_Store files
+        } else if (path.basename(res) !== '.DS_Store') {
             return res;
         }
     }));
     return files.flat().filter(Boolean);
 }
 
+// Function to delete all files and directories in the given path
+async function deleteAllFiles(dir) {
+    const subDirs = await readdir(dir, { withFileTypes: true });
+    await Promise.all(subDirs.map(async (subDir) => {
+        const res = path.resolve(dir, subDir.name);
+        if (subDir.isDirectory()) {
+            await deleteAllFiles(res);
+            await rmdir(res);
+        } else {
+            await unlink(res);
+        }
+    }));
+}
+
 // Start the server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
